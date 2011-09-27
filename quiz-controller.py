@@ -1,4 +1,5 @@
 import os, sys
+import json
 import logging
 import shlex
 import subprocess
@@ -74,6 +75,9 @@ class ScreenWidget (QtGui.QWidget):
   def on_apply (self):
     raise NotImplementedError
 
+  def handler_default (self):
+    raise NotImplementedError
+
 class Splash (ScreenWidget):
 
   def widgets (self):
@@ -124,6 +128,23 @@ class Countdown (ScreenWidget):
       self.send_command ("STOP")
       self.start_pause.setText ("Start")
 
+class WidgetStack (QtGui.QGroupBox):
+
+  def __init__ (self, controller, position, *args, **kwargs):
+    super (WidgetStack, self).__init__ (position.title (), *args, **kwargs)
+    self.position = position.lower ()
+
+    layout = QtGui.QVBoxLayout ()
+    self.selector = QtGui.QComboBox ()
+    layout.addWidget (self.selector)
+    self.stack = QtGui.QStackedWidget ()
+    layout.addWidget (self.stack)
+    self.setLayout (layout)
+
+    for cls in ScreenWidget._screens ():
+      self.selector.addItem (cls.__name__)
+      self.stack.addWidget (cls (controller, position))
+
 class QuizController (QtGui.QWidget):
 
   COMMAND_MAILSLOT_NAME = "quiz"
@@ -144,20 +165,8 @@ class QuizController (QtGui.QWidget):
     groups_layout = QtGui.QHBoxLayout ()
     self.groups = {}
     for position in ("left", "right"):
-      self.groups[position] = group = QtGui.QGroupBox (position.title ())
-      layout = QtGui.QVBoxLayout ()
-      group.selector = QtGui.QComboBox ()
-      layout.addWidget (group.selector)
-      group.stack = QtGui.QStackedWidget ()
-      layout.addWidget (group.stack)
-
-      for cls in ScreenWidget._screens ():
-        group.selector.addItem (cls.__name__)
-        group.stack.addWidget (cls (self, position))
-
-      group.setLayout (layout)
-      groups_layout.addWidget (group)
-      group.selector.currentIndexChanged.connect (self.switch (position))
+      self.groups[position] = WidgetStack (self, position)
+      groups_layout.addWidget (self.groups[position])
 
     overall_layout.addLayout (groups_layout)
     self.add_controller (overall_layout)
@@ -166,8 +175,8 @@ class QuizController (QtGui.QWidget):
     self.send_command ("TEAMS?")
     self.send_command ("COLOURS?")
     self.send_command ("SCORES?")
-    self.send_command ("LEFT?")
-    self.send_command ("RIGHT?")
+    self.send_command ("LEFT STATE?")
+    self.send_command ("RIGHT STATE?")
 
   def switch (self, position):
     def _switch (index):
@@ -215,35 +224,6 @@ class QuizController (QtGui.QWidget):
       team_plus.pressed.connect (set_team_plus)
       team_minus.pressed.connect (set_team_minus)
 
-  def add_countdown (self, overall_layout):
-    countdown_layout = QtGui.QHBoxLayout ()
-    countdown_layout.addWidget (QtGui.QLabel ("Ticks"))
-    n_ticks = QtGui.QLineEdit ("60")
-    countdown_layout.addWidget (n_ticks)
-    countdown_layout.addWidget (QtGui.QLabel ("Big ticks at"))
-    big_tick_every_n = QtGui.QLineEdit ("5")
-    countdown_layout.addWidget (big_tick_every_n)
-    countdown_layout.addWidget (QtGui.QLabel ("Tick interval"))
-    tick_interval_secs = QtGui.QLineEdit ("1")
-    countdown_layout.addWidget (tick_interval_secs)
-    reset_countdown = QtGui.QPushButton ("Reset")
-    countdown_layout.addWidget (reset_countdown)
-    start_pause = QtGui.QPushButton ("Start")
-    countdown_layout.addWidget (start_pause)
-    overall_layout.addLayout (countdown_layout)
-
-    def _reset_countdown (n_ticks=n_ticks, big_tick_every_n=big_tick_every_n, tick_interval_secs=tick_interval_secs):
-      self.send_command ("COUNTDOWN %s %s %s" % (n_ticks.text (), big_tick_every_n.text (), tick_interval_secs.text ()))
-    def _start_pause_countdown (start_pause=start_pause):
-      if start_pause.text () == "Start":
-        self.send_command ("START")
-        start_pause.setText ("Pause")
-      else:
-        self.send_command ("STOP")
-        start_pause.setText ("Start")
-    reset_countdown.pressed.connect (_reset_countdown)
-    start_pause.pressed.connect (_start_pause_countdown)
-
   def add_controller (self, overall_layout):
     command_label = QtGui.QLabel ("Command")
     self.command = QtGui.QLineEdit ()
@@ -268,11 +248,15 @@ class QuizController (QtGui.QWidget):
     else:
       log.warn ("No command output")
 
+  def position_widget (self, position):
+    return self.groups.get (position.lower ())
+
   def handle_default (self, *args):
     log.debug ("handle_default: %s", str (args))
 
   def handle_position (self, position, *rest):
     log.debug ("handle_position: %s, %s", position, rest)
+
     cls_name = rest[0]
     group = self.groups[position]
     group.selector.setCurrentIndex (group.selector.findText (cls_name))

@@ -207,18 +207,12 @@ class Engine (object):
         commands.update (i[len ("get_"):] + "?" for i in dir (obj) if i.startswith ("get_"))
       return "HELP " + " ".join (sorted (commands))
 
-  def _get_position (self, position):
-    response = position.upper ()
-    screen = self.panels.get (position.lower ())
-    if screen:
-      response += " " + screen.get_state ()
-    return response
-
-  def get_left (self):
-    return self._get_position ("left")
-
-  def get_right (self):
-    return self._get_position ("right")
+  #~ def _get_position (self, position):
+    #~ response = position.upper ()
+    #~ screen = self.panels.get (position.lower ())
+    #~ if screen:
+      #~ response += " " + screen.get_state ()
+    #~ return response
 
   def get_teams (self):
     return "TEAMS %s" % (" ".join ('"%s"' % team.name for team in self.teams))
