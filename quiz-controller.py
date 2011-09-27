@@ -132,10 +132,13 @@ class WidgetStack (QtGui.QGroupBox):
 
   def __init__ (self, controller, position, *args, **kwargs):
     super (WidgetStack, self).__init__ (position.title (), *args, **kwargs)
+    self.controller = controller
     self.position = position.lower ()
 
     layout = QtGui.QVBoxLayout ()
     self.selector = QtGui.QComboBox ()
+    self.selector.currentIndexChanged.connect (self.on_selector)
+
     layout.addWidget (self.selector)
     self.stack = QtGui.QStackedWidget ()
     layout.addWidget (self.stack)
@@ -144,6 +147,14 @@ class WidgetStack (QtGui.QGroupBox):
     for cls in ScreenWidget._screens ():
       self.selector.addItem (cls.__name__)
       self.stack.addWidget (cls (controller, position))
+
+  def on_selector (self, index):
+    self.stack.setCurrentIndex (index)
+    self.controller.send_command ("SWITCH %s %s" % (self.position, self.selector.itemText (index)))
+    self.controller.send_command ("%s STYLES?" % self.position)
+
+  def handle_styles (self, *rest):
+    log.debug ("handle_styles: %s", rest)
 
 class QuizController (QtGui.QWidget):
 
@@ -177,14 +188,6 @@ class QuizController (QtGui.QWidget):
     self.send_command ("SCORES?")
     self.send_command ("LEFT STATE?")
     self.send_command ("RIGHT STATE?")
-
-  def switch (self, position):
-    def _switch (index):
-      group = self.groups[position]
-      group.stack.setCurrentIndex (index)
-      self.send_command ("SWITCH %s %s" % (position, group.selector.itemText (index)))
-      self.send_command ("%s STYLES?" % position)
-    return _switch
 
   def add_teams (self, overall_layout):
     self.teams = []
