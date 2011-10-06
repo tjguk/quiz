@@ -7,6 +7,9 @@ import pygame
 
 class Queue (QueueModule.Queue):
 
+  def put (self, action, args=(), kwargs={}):
+    QueueModule.Queue.put (self, (action, args, kwargs))
+
   def __iter__ (self):
     while True:
       try:

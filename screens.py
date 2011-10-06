@@ -1,10 +1,14 @@
 import math
 
 import pygame
+from PyQt4 import QtCore, QtGui
 
 import core
 import screen
 
+#
+# Splash - screen & widget
+#
 class Splash (screen.Screen):
 
   name = "Splash"
@@ -25,6 +29,23 @@ class Splash (screen.Screen):
     text_rect.center = rect.center
     surface.blit (text, text_rect)
 
+class SplashWidget (screen.ScreenWidget):
+
+  name = "Splash"
+
+  def widgets (self):
+    layout = QtGui.QHBoxLayout ()
+    self.greetings = QtGui.QLineEdit ("Quizzicals")
+    self.greetings.textEdited.connect (self.on_greetings)
+    layout.addWidget (self.greetings)
+    return layout
+
+  def on_greetings (self, new_greetings):
+    self.send_command ('RESET "%s"' % new_greetings)
+
+#
+# Countdown - screen & widget
+#
 class Countdown (screen.Screen):
 
   name = "Countdown"
@@ -150,6 +171,45 @@ class Countdown (screen.Screen):
   def get_countdown (self):
     return "COUNTDOWN %d" % self.n_tick
 
+class CountdownWidget (screen.ScreenWidget):
+
+  name = "Countdown"
+
+  def widgets (self):
+    layout = QtGui.QHBoxLayout ()
+    layout.addWidget (QtGui.QLabel ("Ticks"))
+    self.n_ticks = QtGui.QLineEdit ("60")
+    layout.addWidget (self.n_ticks)
+    layout.addWidget (QtGui.QLabel ("Big ticks at"))
+    self.big_tick_every_n = QtGui.QLineEdit ("5")
+    layout.addWidget (self.big_tick_every_n)
+    layout.addWidget (QtGui.QLabel ("Tick interval"))
+    self.tick_interval_secs = QtGui.QLineEdit ("1")
+    layout.addWidget (self.tick_interval_secs)
+    reset_countdown = QtGui.QPushButton ("Reset")
+    layout.addWidget (reset_countdown)
+    start_pause = QtGui.QPushButton ("Start")
+    layout.addWidget (start_pause)
+
+    reset_countdown.pressed.connect (self.on_reset)
+    start_pause.pressed.connect (self.on_start_pause)
+
+    return layout
+
+  def on_reset (self):
+    self.send_command ("COUNTDOWN %s %s %s" % (self.n_ticks.text (), self.big_tick_every_n.text (), self.tick_interval_secs.text ()))
+
+  def on_start_pause (self):
+    if self.start_pause.text () == "Start":
+      self.send_command ("START")
+      self.start_pause.setText ("Pause")
+    else:
+      self.send_command ("STOP")
+      self.start_pause.setText ("Start")
+
+#
+# Scores - screen & widget
+#
 class Scores (screen.Screen):
 
   name = "Scores"
@@ -220,3 +280,8 @@ class Scores (screen.Screen):
     #
     super (Scores, self).render (surface, rect)
     self.is_dirty = True
+
+class ScoresWidget (screen.ScreenWidget):
+
+  name = "Scores"
+

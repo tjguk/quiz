@@ -8,9 +8,9 @@ import time
 import Pyro4
 from PyQt4 import QtCore, QtGui
 
-log = logging.getLogger ("Quiz")
-log.setLevel (logging.DEBUG)
-log.addHandler (logging.StreamHandler ())
+import core
+import screen
+import screens
 
 class FeedbackReader (QtCore.QThread):
 
@@ -23,110 +23,6 @@ class FeedbackReader (QtCore.QThread):
   def run (self):
     while True:
       self.message_received.emit (self.feedback.get ())
-
-class ScreenWidget (QtGui.QWidget):
-
-  def __init__ (self, controller, position, *args, **kwargs):
-    super (ScreenWidget, self).__init__ (*args, **kwargs)
-    self.controller = controller
-    self.position = position.lower ()
-
-    overall_layout = QtGui.QVBoxLayout ()
-    layout = QtGui.QHBoxLayout ()
-    layout.addWidget (QtGui.QLabel ("Style"))
-    self.styles = QtGui.QComboBox ()
-    layout.addWidget (self.styles)
-    overall_layout.addLayout (layout)
-
-    widget_layout = self.widgets ()
-    if widget_layout:
-      overall_layout.addLayout (widget_layout)
-
-    layout = QtGui.QHBoxLayout ()
-    self.apply = QtGui.QPushButton ("Apply")
-    layout.addWidget (self.apply)
-    overall_layout.addLayout (layout)
-
-    self.setLayout (overall_layout)
-
-    self.styles.currentIndexChanged.connect (self.on_style)
-    self.apply.clicked.connect (self.on_apply)
-
-  @classmethod
-  def _screens (cls):
-    for subclass in cls.__subclasses__ ():
-      yield subclass
-      for s in subclass._screens ():
-        yield s
-
-  def widgets (self):
-    """Set up some widgets; return a layout
-    """
-    return None
-
-  def send_command (self, command):
-    self.controller.send_command ("%s %s" % (self.position.upper (), command))
-
-  def on_style (self, index):
-    log.debug ("Handling style change for position %s, style %s", self.position, index)
-    log.debug (self.styles.itemText (index))
-    self.send_command ("STYLE %s" % self.styles.itemText (index))
-
-  def on_apply (self):
-    raise NotImplementedError
-
-  def handler_default (self):
-    raise NotImplementedError
-
-class Splash (ScreenWidget):
-
-  def widgets (self):
-    layout = QtGui.QHBoxLayout ()
-    self.greetings = QtGui.QLineEdit ("Quizzicals")
-    self.greetings.textEdited.connect (self.on_greetings)
-    layout.addWidget (self.greetings)
-    return layout
-
-  def on_greetings (self, new_greetings):
-    self.send_command ('RESET "%s"' % new_greetings)
-
-class Scores (ScreenWidget):
-
-  pass
-
-class Countdown (ScreenWidget):
-
-  def widgets (self):
-    layout = QtGui.QHBoxLayout ()
-    layout.addWidget (QtGui.QLabel ("Ticks"))
-    self.n_ticks = QtGui.QLineEdit ("60")
-    layout.addWidget (self.n_ticks)
-    layout.addWidget (QtGui.QLabel ("Big ticks at"))
-    self.big_tick_every_n = QtGui.QLineEdit ("5")
-    layout.addWidget (self.big_tick_every_n)
-    layout.addWidget (QtGui.QLabel ("Tick interval"))
-    self.tick_interval_secs = QtGui.QLineEdit ("1")
-    layout.addWidget (self.tick_interval_secs)
-    reset_countdown = QtGui.QPushButton ("Reset")
-    layout.addWidget (reset_countdown)
-    start_pause = QtGui.QPushButton ("Start")
-    layout.addWidget (start_pause)
-
-    reset_countdown.pressed.connect (self.on_reset)
-    start_pause.pressed.connect (self.on_start_pause)
-
-    return layout
-
-  def on_reset (self):
-    self.send_command ("COUNTDOWN %s %s %s" % (self.n_ticks.text (), self.big_tick_every_n.text (), self.tick_interval_secs.text ()))
-
-  def on_start_pause (self):
-    if self.start_pause.text () == "Start":
-      self.send_command ("START")
-      self.start_pause.setText ("Pause")
-    else:
-      self.send_command ("STOP")
-      self.start_pause.setText ("Start")
 
 class WidgetStack (QtGui.QGroupBox):
 
@@ -144,8 +40,8 @@ class WidgetStack (QtGui.QGroupBox):
     layout.addWidget (self.stack)
     self.setLayout (layout)
 
-    for cls in ScreenWidget._screens ():
-      self.selector.addItem (cls.__name__)
+    for cls in screen.ScreenWidget.__subclasses__ ():
+      self.selector.addItem (cls.name)
       self.stack.addWidget (cls (controller, position))
 
   def on_selector (self, index):
@@ -154,7 +50,7 @@ class WidgetStack (QtGui.QGroupBox):
     self.controller.send_command ("%s STYLES?" % self.position)
 
   def handle_styles (self, *rest):
-    log.debug ("handle_styles: %s", rest)
+    core.log.debug ("handle_styles: %s", rest)
 
 class QuizController (QtGui.QWidget):
 
@@ -173,16 +69,16 @@ class QuizController (QtGui.QWidget):
     overall_layout = QtGui.QVBoxLayout ()
     self.add_teams (overall_layout)
 
-    groups_layout = QtGui.QHBoxLayout ()
-    self.groups = {}
-    for position in ("left", "right"):
-      self.groups[position] = WidgetStack (self, position)
-      groups_layout.addWidget (self.groups[position])
-
-    overall_layout.addLayout (groups_layout)
+    self.panel_layout = QtGui.QHBoxLayout ()
+    self.panels = {}
+    #
+    # Panels wlil be added via the handle_position handler below
+    #
+    overall_layout.addLayout (self.panel_layout)
     self.add_controller (overall_layout)
     self.setLayout (overall_layout)
 
+    self.send_command ("POSITIONS?")
     self.send_command ("TEAMS?")
     self.send_command ("COLOURS?")
     self.send_command ("SCORES?")
@@ -249,16 +145,37 @@ class QuizController (QtGui.QWidget):
       self.command.setText (command)
       self.controller.put (command)
     else:
-      log.warn ("No command output")
+      core.log.warn ("No command output")
 
   def position_widget (self, position):
     return self.groups.get (position.lower ())
 
   def handle_default (self, *args):
-    log.debug ("handle_default: %s", str (args))
+    core.log.debug ("handle_default: %s", str (args))
 
-  def handle_position (self, position, *rest):
-    log.debug ("handle_position: %s, %s", position, rest)
+  def handle_positions (self, positions):
+    """Handle the POSITIONS event by constructing a corresponding
+    number of panels. Fire off a command to query for the screen
+    each panel is currently showing.
+    """
+    for position in positions:
+      panel = self.panels[position.lower ()] = Panel (self, position)
+      self.panel_layout.addWidget (panel)
+      self.send_command ("POSITION? %s" % position)
+
+  def handle_position (self, position, screen_name):
+    """Handle the POSITION event by selecting the corresponding
+    screen from the stacked widget.
+    """
+    panel = self.panels[position.lower ()]
+    if panel.selector.currentText () != screen_name:
+      panel.selector.setCurrentText (screen_name)
+      #
+      # Changing the selector will cause a STATE? query to fire
+      #
+
+  def _handle_position (self, position, *rest):
+    core.log.debug ("handle_position: %s, %s", position, rest)
 
     cls_name = rest[0]
     group = self.groups[position]
@@ -278,10 +195,10 @@ class QuizController (QtGui.QWidget):
         subwidget.setText (v)
 
   def handle_left (self, *rest):
-    self.handle_position ("left", *rest)
+    self._handle_position ("left", *rest)
 
   def handle_right (self, *rest):
-    self.handle_position ("right", *rest)
+    self._handle_position ("right", *rest)
 
   def handle_teams (self, *rest):
     for n_team, new_name in enumerate (rest):
@@ -302,12 +219,12 @@ class QuizController (QtGui.QWidget):
     self.close ()
 
   def handle_response (self, message):
-    log.debug ("Response received: %s", message)
+    core.log.debug ("Response received: %s", message)
     self.responses.setText (message)
     parts = shlex.split (str (message))
     response, rest = parts[0].lower (), parts[1:]
     handler = getattr (self, "handle_" + response, self.handle_default)
-    log.debug ("Response handler: %s", handler)
+    core.log.debug ("Response handler: %s", handler)
     return handler (*rest)
 
 def main ():

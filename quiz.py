@@ -84,16 +84,14 @@ class Engine (object):
 
   def check_pygame_events (self, objs):
     for event in pygame.event.get ():
-      core.log.debug ("Received %s", event)
       for obj in objs:
         if obj.handle_pygame_event (event):
           break
 
   def check_instructions (self, objects):
-    for instruction in self.instructions:
-      core.log.debug ("Engine Instruction: %r", instruction)
-      parts = shlex.split (instruction.strip ())
-      feedback = self.check_instruction (objects, parts)
+    for action, args, kwargs in self.instructions:
+      core.log.debug ("Engine Instruction: %r", action)
+      feedback = self.check_instruction (objects, action.strip ().lower (), args, kwargs)
       if feedback:
         self.publish (feedback)
 
@@ -110,16 +108,16 @@ class Engine (object):
     else:
       return False
 
-  def check_instruction (self, objects, parts):
-    verb = parts[0].lower ()
-    if verb.endswith ("?"):
-      action = "get_" + verb[:-1]
+  def check_instruction (self, objects, action, args, kwargs):
+    core.log.debug ("check_instruction: %s, %s, %s, %s", objects, action, args, kwargs)
+    if action.endswith ("?"):
+      verb = "get_" + action[:-1]
     else:
-      action = "do_" + verb
+      verb = "do_" + action
 
     for obj in objects:
-      if hasattr (obj, action):
-        return getattr (obj, action) (*parts[1:])
+      if hasattr (obj, verb):
+        return getattr (obj, verb) (*args, **kwargs)
 
   def on_resize (self, size=None):
     if size:
@@ -174,7 +172,9 @@ class Engine (object):
     position = position.lower ()
     assert position in self.positions
     cls = _screens[screen_name.lower ()]
-    self.panels[position] = cls (self)
+    if self.panels[position].name != screen_name:
+      self.panels[position] = cls (self)
+      self.publish ("SWITCH %s %s" % (position, screen_name))
 
   def _do_position (self, position, *rest):
     """Send a command to the left or right panel. NB This
@@ -199,38 +199,37 @@ class Engine (object):
       fn = getattr (self, ("get_" if command.endswith ("?") else "do_") + command.lower (), None)
       if fn:
         args = inspect.getargspec (fn).args[1:]
-        return "HELP %s %s" % (command.upper (), " ".join (args))
+        return "HELP", command.upper (), args
     else:
       commands = set ()
       for obj in [self] + self.panels.values ():
         commands.update (i[len ("do_"):] for i in dir (obj) if i.startswith ("do_"))
         commands.update (i[len ("get_"):] + "?" for i in dir (obj) if i.startswith ("get_"))
-      return "HELP " + " ".join (sorted (commands))
+      return "HELP", sorted (commands)
 
-  #~ def _get_position (self, position):
-    #~ response = position.upper ()
-    #~ screen = self.panels.get (position.lower ())
-    #~ if screen:
-      #~ response += " " + screen.get_state ()
-    #~ return response
+  def get_positions (self):
+    return "POSITIONS", list (self.panels)
+
+  def get_position (self, position):
+    return "POSITION", (position, self.panels[position.lower ()].name)
 
   def get_teams (self):
-    return "TEAMS %s" % (" ".join ('"%s"' % team.name for team in self.teams))
+    return "TEAM", [team.name for team in self.teams]
 
   def get_scores (self):
-    return "SCORES %s" % (" ".join ("%d" % team.score for team in self.teams))
+    return "SCORES", [team.score for team in self.teams]
 
   def get_colours (self):
-    return "COLOURS %s" % (" ".join ("#%02x%02x%02x" % team.colour[:3] for team in self.teams))
+    return "COLOURS", ["#%02x%02x%02x" % team.colour[:3] for team in self.teams]
 
   def repaint (self):
     self.window.fill (self.background_colour)
     for position, screen in self.panels.items ():
       screen.is_dirty = True
 
-  def publish (self, message):
+  def publish (self, message, args=(), kwargs={}):
     core.log.debug ("Publish %s", message)
-    self.feedback.put (message)
+    self.feedback.put (message, args=(), kwargs={})
 
   def run (self):
     instruction_manager = threading.Thread (
