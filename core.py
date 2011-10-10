@@ -1,20 +1,23 @@
 import collections
 import json
 import logging
-import Queue as QueueModule
+import Queue
 
 import pygame
 
-class Queue (QueueModule.Queue):
+#
+# NB Queue.Queue is an old-style class; you can't use super
+#
+class IPCQueue (Queue.Queue):
 
   def put (self, action, args=(), kwargs={}):
-    QueueModule.Queue.put (self, (action, args, kwargs))
+    Queue.Queue.put ((action, args, kwargs))
 
   def __iter__ (self):
     while True:
       try:
         yield self.get_nowait ()
-      except QueueModule.Empty:
+      except Queue.Empty:
         break
 
 log = logging.getLogger ("Quiz")
@@ -67,13 +70,6 @@ class Font (pygame.font.Font):
     img.blit(outline, (0, 0))
     img.set_colorkey(0)
     return img
-
-def remote_instructions (mailslot):
-  while True:
-    try:
-      yield mailslot.get_nowait ().strip ()
-    except ipc.x_mailslot_empty:
-      break
 
 timer_event_type = pygame.USEREVENT + 1
 scores_changed_event = pygame.event.Event (pygame.USEREVENT + 2)

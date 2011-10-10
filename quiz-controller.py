@@ -14,7 +14,7 @@ import screens
 
 class FeedbackReader (QtCore.QThread):
 
-  message_received = QtCore.pyqtSignal (unicode)
+  message_received = QtCore.pyqtSignal (unicode, tuple, dict)
 
   def __init__ (self, proxy):
     super (FeedbackReader, self).__init__ ()
@@ -139,19 +139,23 @@ class QuizController (QtGui.QWidget):
     responses_layout.addWidget (self.responses)
     overall_layout.addLayout (responses_layout)
 
-  def send_command (self, command=None):
-    command = unicode (command or self.command.text ()).encode ("iso-8859-1")
-    if command:
-      self.command.setText (command)
-      self.controller.put (command)
-    else:
-      core.log.warn ("No command output")
+  def send_command (self, message=None, *args, **kwargs):
+    if not message:
+      commands = unicode (self.command.text ()).encode ("iso-8859-1").split ()
+      if not commands:
+        core.log.warn ("No command")
+        return
+      else:
+        message, args = commands[0], commands[1:]
+
+    self.command.setText (command)
+    self.controller.put (command)
 
   def position_widget (self, position):
     return self.groups.get (position.lower ())
 
-  def handle_default (self, *args):
-    core.log.debug ("handle_default: %s", str (args))
+  def handle_default (self, *args, **kwargs):
+    core.log.debug ("handle_default: %s, %s", str (args), str (kwargs))
 
   def handle_positions (self, positions):
     """Handle the POSITIONS event by constructing a corresponding
@@ -174,58 +178,55 @@ class QuizController (QtGui.QWidget):
       # Changing the selector will cause a STATE? query to fire
       #
 
-  def _handle_position (self, position, *rest):
+  def _handle_position (self, position, cls_name, **kwargs):
     core.log.debug ("handle_position: %s, %s", position, rest)
 
-    cls_name = rest[0]
     group = self.groups[position]
     group.selector.setCurrentIndex (group.selector.findText (cls_name))
     screen_widget = group.stack.currentWidget ()
-    params = dict (i.split ("=") for i in rest[1:])
 
     styles_combo = screen_widget.styles
-    if "styles" in params:
+    if "styles" in kwargs:
       styles_combo.clear ()
-      styles_combo.addItems ([item.strip () for item in params.pop ("styles").split (",")])
-    if "style" in params:
-      screen_widget.styles.setCurrentIndex (screen_widget.styles.findText (params.pop ("style")))
-    for k, v in params.items ():
+      styles_combo.addItems ([item.strip () for item in kwargs.pop ("styles")])
+    if "style" in kwargs:
+      screen_widget.styles.setCurrentIndex (screen_widget.styles.findText (kwargs.pop ("style")))
+    for k, v in kwargs.items ():
       subwidget = getattr (screen_widget, k.lower (), None)
       if subwidget:
         subwidget.setText (v)
 
-  def handle_left (self, *rest):
-    self._handle_position ("left", *rest)
+  def handle_left (self, *args, **kwargs):
+    self._handle_position ("left", *args, **kwargs)
 
-  def handle_right (self, *rest):
-    self._handle_position ("right", *rest)
+  def handle_right (self, *args, **kwargs):
+    self._handle_position ("right", *args, **kwargs)
 
-  def handle_teams (self, *rest):
-    for n_team, new_name in enumerate (rest):
+  def handle_teams (self, teams):
+    for n_team, new_name in enumerate (teams):
       name, _, _, _ = self.teams[n_team]
       name.setText (new_name)
 
-  def handle_colours (self, *rest):
-    for n_team, new_colour in enumerate (rest):
+  def handle_colours (self, colours):
+    for n_team, new_colour in enumerate (colours):
       name, _, _, _ = self.teams[n_team]
       name.setStyleSheet ("* { background-color : %s; }" % new_colour)
 
-  def handle_scores (self, *rest):
-    for n_team, new_score in enumerate (rest):
+  def handle_scores (self, scores):
+    for n_team, new_score in enumerate (scores):
       _, score, _, _ = self.teams[n_team]
       score.setText (new_score)
 
   def handle_quit (self):
     self.close ()
 
-  def handle_response (self, message):
+  def handle_response (self, message, args, kwargs):
     core.log.debug ("Response received: %s", message)
-    self.responses.setText (message)
-    parts = shlex.split (str (message))
-    response, rest = parts[0].lower (), parts[1:]
+    response = "%s %s %s" % (message, " ".join (args), " ".join ("%s=%s" % (k, v) for (k, v) in kwargs))
+    self.responses.setText (response)
     handler = getattr (self, "handle_" + response, self.handle_default)
     core.log.debug ("Response handler: %s", handler)
-    return handler (*rest)
+    return handler (*args, **kwargs)
 
 def main ():
   app = QtGui.QApplication ([])
