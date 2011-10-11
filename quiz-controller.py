@@ -14,7 +14,7 @@ import screens
 
 class FeedbackReader (QtCore.QThread):
 
-  message_received = QtCore.pyqtSignal (unicode, tuple, dict)
+  message_received = QtCore.pyqtSignal (unicode, tuple)
 
   def __init__ (self, proxy):
     super (FeedbackReader, self).__init__ ()
@@ -22,7 +22,10 @@ class FeedbackReader (QtCore.QThread):
 
   def run (self):
     while True:
-      self.message_received.emit (self.feedback.get ())
+      feedback = self.feedback.get ()
+      if feedback:
+        message, args = feedback[0], tuple (feedback[1:])
+        self.message_received.emit (message, args)
 
 class WidgetStack (QtGui.QGroupBox):
 
@@ -46,8 +49,8 @@ class WidgetStack (QtGui.QGroupBox):
 
   def on_selector (self, index):
     self.stack.setCurrentIndex (index)
-    self.controller.send_command ("SWITCH %s %s" % (self.position, self.selector.itemText (index)))
-    self.controller.send_command ("%s STYLES?" % self.position)
+    self.controller.send_command ("SWITCH", self.position, self.selector.itemText (index))
+    self.controller.send_command (self.position, "STYLES?")
 
   def handle_styles (self, *rest):
     core.log.debug ("handle_styles: %s", rest)
@@ -106,11 +109,11 @@ class QuizController (QtGui.QWidget):
       overall_layout.addLayout (layout)
 
       def set_team_name (new_name, n_team=i, team_name=team_name, team_score=team_score):
-        self.send_command ('NAME %d "%s"' % (n_team, team_name.text ()))
+        self.send_command ("name"< n_team, team_name.text ())
         if not team_name.styleSheet ():
           self.send_command ("COLOURS?")
       def set_team_score (new_score, n_team=i):
-        self.send_command ('SCORE %d =%s' % (n_team, new_score))
+        self.send_command ("SCORE", n_team, new_score)
       def set_team_plus (n_team=i, team_score=team_score):
         score = 1 + int (team_score.text () or 0)
         team_score.setText (str (score))
@@ -139,7 +142,7 @@ class QuizController (QtGui.QWidget):
     responses_layout.addWidget (self.responses)
     overall_layout.addLayout (responses_layout)
 
-  def send_command (self, message=None, *args, **kwargs):
+  def send_command (self, message=None, *args):
     if not message:
       commands = unicode (self.command.text ()).encode ("iso-8859-1").split ()
       if not commands:
@@ -165,7 +168,7 @@ class QuizController (QtGui.QWidget):
     for position in positions:
       panel = self.panels[position.lower ()] = Panel (self, position)
       self.panel_layout.addWidget (panel)
-      self.send_command ("POSITION? %s" % position)
+      self.send_command ("POSITION?", position)
 
   def handle_position (self, position, screen_name):
     """Handle the POSITION event by selecting the corresponding
@@ -178,7 +181,7 @@ class QuizController (QtGui.QWidget):
       # Changing the selector will cause a STATE? query to fire
       #
 
-  def _handle_position (self, position, cls_name, **kwargs):
+  def _handle_position (self, position, cls_name, state):
     core.log.debug ("handle_position: %s, %s", position, rest)
 
     group = self.groups[position]
@@ -186,12 +189,12 @@ class QuizController (QtGui.QWidget):
     screen_widget = group.stack.currentWidget ()
 
     styles_combo = screen_widget.styles
-    if "styles" in kwargs:
+    if "styles" in state:
       styles_combo.clear ()
-      styles_combo.addItems ([item.strip () for item in kwargs.pop ("styles")])
-    if "style" in kwargs:
-      screen_widget.styles.setCurrentIndex (screen_widget.styles.findText (kwargs.pop ("style")))
-    for k, v in kwargs.items ():
+      styles_combo.addItems ([item.strip () for item in state.pop ("styles")])
+    if "style" in state:
+      screen_widget.styles.setCurrentIndex (screen_widget.styles.findText (state.pop ("style")))
+    for k, v in state.items ():
       subwidget = getattr (screen_widget, k.lower (), None)
       if subwidget:
         subwidget.setText (v)
@@ -220,13 +223,13 @@ class QuizController (QtGui.QWidget):
   def handle_quit (self):
     self.close ()
 
-  def handle_response (self, message, args, kwargs):
+  def handle_response (self, message, args):
     core.log.debug ("Response received: %s", message)
-    response = "%s %s %s" % (message, " ".join (args), " ".join ("%s=%s" % (k, v) for (k, v) in kwargs))
+    response = "%s %s" % (message, " ".join ("%r" % arg for arg in args))
     self.responses.setText (response)
-    handler = getattr (self, "handle_" + response, self.handle_default)
+    handler = getattr (self, "handle_" + message.lower (), self.handle_default)
     core.log.debug ("Response handler: %s", handler)
-    return handler (*args, **kwargs)
+    return handler (*args)
 
 def main ():
   app = QtGui.QApplication ([])
@@ -236,4 +239,3 @@ def main ():
 
 if __name__ == '__main__':
   sys.exit (main (*sys.argv[1:]))
-

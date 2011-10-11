@@ -92,18 +92,18 @@ class Engine (object):
     the first object which will have them. If the object's handler
     returns anything, push that back on the feedback queue.
     """
-    for action, args, kwargs in self.instructions:
-      core.log.debug ("Engine Instruction: %r", action)
-      feedback = self.check_instruction (objects, action.strip ().lower (), args, kwargs)
+    for action, args in self.instructions:
+      core.log.debug ("Engine Instruction: %r (%s)", action, args)
+      feedback = self.check_instruction (objects, action.strip ().lower (), args)
       if feedback:
-        self.publish (feedback)
+        self.publish (*feedback)
 
-  def check_instruction (self, objects, action, args, kwargs):
+  def check_instruction (self, objects, action, args):
     """Find the first of a list of objects which can handle an action
     and return whatever its handler returns. NB an action which ends
     in a "?" invokes a get handler; any other action invokes a do handler.
     """
-    core.log.debug ("check_instruction: %s, %s, %s, %s", objects, action, args, kwargs)
+    core.log.debug ("check_instruction: %s, %s (%s)", objects, action, args)
     if action.endswith ("?"):
       verb = "get_" + action[:-1]
     else:
@@ -111,7 +111,7 @@ class Engine (object):
 
     for obj in objects:
       if hasattr (obj, verb):
-        return getattr (obj, verb) (*args, **kwargs)
+        return getattr (obj, verb) (*args)
 
   def handle_pygame_event (self, event):
     """Handle core pygame events: quit & resize. For unhandled events,
@@ -184,27 +184,27 @@ class Engine (object):
       self.panels[position] = cls (self)
       return "SWITCH", position, screen_name
 
-  def _do_position (self, position, *args, **kwargs):
+  def _do_position (self, position, *args):
     """Send a command to the left or right panel. NB This
     cannot be used to switch the screen underlying the panel;
     for that, use SWITCH.
     """
     screen = self.panels.get (position)
     if screen:
-      core.log.debug ("Passing %s and %s onto %s", args, kwargs, screen)
-      feedback = self.check_instruction ([screen], args, kwargs)
+      core.log.debug ("Passing %s onto %s", args, screen)
+      feedback = self.check_instruction ([screen], args)
       if feedback:
-        self.publish ("%s %s" % (position, feedback))
+        self.publish (position, *feedback)
 
-  def do_left (self, *args, **kwargs):
+  def do_left (self, *args):
     """Pass the command and its parameters through to the left-hand panel
     """
-    self._do_position ("left", *args, **kwargs)
+    return self._do_position ("left", *args)
 
-  def do_right (self, *args, **kwargs):
+  def do_right (self, *args):
     """Pass the command and its parameters through to the right-hand panel
     """
-    self._do_position ("right", *args, **kwargs)
+    return self._do_position ("right", *args)
 
   def get_help (self, command=None):
     """If a command is specified, return the parameters for that command, otherwise
@@ -230,7 +230,7 @@ class Engine (object):
   def get_position (self, position):
     """Return the class of the panel at position `position`
     """
-    return "POSITION", (position, self.panels[position.lower ()].name)
+    return "POSITION", position, self.panels[position.lower ()].name
 
   def get_teams (self):
     """Return a list of teams
@@ -257,11 +257,11 @@ class Engine (object):
       #
       screen.is_dirty = True
 
-  def publish (self, message, args=(), kwargs={}):
+  def publish (self, message, *args):
     """Send a message and parameters back through the feedback queue
     """
-    core.log.debug ("Publish %s", message)
-    self.feedback.put (message, args=(), kwargs={})
+    core.log.debug ("Publish %s: %s", message, args)
+    self.feedback.put (message, *args)
 
   def run (self):
     #

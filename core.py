@@ -10,8 +10,8 @@ import pygame
 #
 class IPCQueue (Queue.Queue):
 
-  def put (self, action, args=(), kwargs={}):
-    Queue.Queue.put ((action, args, kwargs))
+  def put (self, action, args):
+    Queue.Queue.put ((action, args))
 
   def __iter__ (self):
     while True:

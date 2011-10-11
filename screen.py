@@ -25,6 +25,9 @@ class Screen (object):
     self.do_style (style)
 
   def handle_pygame_event (self, event):
+    """Generic screen handler for pygame events which looks in a keys
+    dictionary to find a mapping between a pygame key and an instruction.
+    """
     if event.type == pygame.KEYDOWN and event.key in self.KEYS:
       self.engine.instructions.put (KEYS[event.key])
       return True
@@ -50,20 +53,20 @@ class Screen (object):
     return [i[len (prefix):] for i in dir (self) if i.startswith (prefix)]
 
   def get_styles (self):
-    return "%s STYLES %s" % (self.position, " ".join (self._styles ()))
+    return self.position, "styles", self._styles ()
 
   #
   # Default getters
   #
   def get_state (self):
     state = [self.name]
-    state.append ('styles="%s"' % ",".join (self._styles ()))
+    info = {"styles" : self._styles ()}
     for s in self._state:
-      state.append ('%s="%s"' % (s, getattr (self, s, None) or ""))
-    return " ".join (state)
+      info[s] = getattr (self, s, None)
+    return self.name, info
 
   def get_styles (self):
-    return "STYLES %s" % " ".join (self._styles ())
+    return "Styles", self._styles ()
 
   #
   # Renderers
@@ -112,23 +115,22 @@ class ScreenWidget (QtGui.QWidget):
     """
     return None
 
-  def send_command (self, command):
-    self.controller.send_command ("%s %s" % (self.position.upper (), command))
+  def send_command (self, *args):
+    self.controller.send_command (self.position.upper (), *args)
 
   def on_style (self, index):
     log.debug ("Handling style change for position %s, style %s", self.position, index)
     log.debug (self.styles.itemText (index))
-    self.send_command ("STYLE %s" % self.styles.currentText ())
+    self.send_command ("style", self.styles.currentText ())
 
   def on_apply (self):
     raise NotImplementedError
 
-  def handle_reset (self, **kwargs):
-    if "style" in kwargs:
-      style = kwargs.pop ("style")
-    for field, value in kwargs.items ():
+  def handle_reset (self, params):
+    if "style" in params:
+      style = params.pop ("style")
+    for field, value in params.items ():
       pass
-
 
   def handle_default (self):
     raise NotImplementedError

@@ -41,7 +41,7 @@ class SplashWidget (screen.ScreenWidget):
     return layout
 
   def on_greetings (self, new_greetings):
-    self.send_command ('RESET "%s"' % new_greetings)
+    self.send_command ("reset", new_greetings)
 
 #
 # Countdown - screen & widget
@@ -169,7 +169,7 @@ class Countdown (screen.Screen):
         self.engine.instructions.put ("FINISH")
 
   def get_countdown (self):
-    return "COUNTDOWN %d" % self.n_tick
+    return "COUNTDOWN", self.n_tick
 
 class CountdownWidget (screen.ScreenWidget):
 
@@ -197,7 +197,7 @@ class CountdownWidget (screen.ScreenWidget):
     return layout
 
   def on_reset (self):
-    self.send_command ("COUNTDOWN %s %s %s" % (self.n_ticks.text (), self.big_tick_every_n.text (), self.tick_interval_secs.text ()))
+    self.send_command ("COUNTDOWN", self.n_ticks.text (), self.big_tick_every_n.text (), self.tick_interval_secs.text ())
 
   def on_start_pause (self):
     if self.start_pause.text () == "Start":
