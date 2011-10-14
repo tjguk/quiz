@@ -24,14 +24,14 @@ class FeedbackReader (QtCore.QThread):
     while True:
       feedback = self.feedback.get ()
       if feedback:
-        message, args = feedback[0], tuple (feedback[1:])
+        message, args = feedback
         self.message_received.emit (message, args)
 
-class WidgetStack (QtGui.QGroupBox):
+class Panel (QtGui.QGroupBox):
 
   def __init__ (self, controller, position, *args, **kwargs):
-    super (WidgetStack, self).__init__ (position.title (), *args, **kwargs)
-    self.controller = controller
+    super (Panel, self).__init__ (position.title (), *args, **kwargs)
+    self.instructions = controller
     self.position = position.lower ()
 
     layout = QtGui.QVBoxLayout ()
@@ -49,8 +49,8 @@ class WidgetStack (QtGui.QGroupBox):
 
   def on_selector (self, index):
     self.stack.setCurrentIndex (index)
-    self.controller.send_command ("SWITCH", self.position, self.selector.itemText (index))
-    self.controller.send_command (self.position, "STYLES?")
+    self.instructions.send_command ("SWITCH", self.position, unicode (self.selector.itemText (index)))
+    self.instructions.send_command (self.position, "STYLES?")
 
   def handle_styles (self, *rest):
     core.log.debug ("handle_styles: %s", rest)
@@ -64,7 +64,7 @@ class QuizController (QtGui.QWidget):
     super (QuizController, self).__init__ (*args, **kwargs)
     self.setWindowTitle ("Quiz Controller")
 
-    self.controller = Pyro4.Proxy ("PYRO:quiz.instructions@localhost:1234")
+    self.instructions = Pyro4.Proxy ("PYRO:quiz.instructions@localhost:1234")
     self.responder = FeedbackReader (Pyro4.Proxy ("PYRO:quiz.feedback@localhost:1234"))
     self.responder.message_received.connect (self.handle_response)
     self.responder.start ()
@@ -151,8 +151,9 @@ class QuizController (QtGui.QWidget):
       else:
         message, args = commands[0], commands[1:]
 
+    command = "%s %s" % (message, " ".join (args))
     self.command.setText (command)
-    self.controller.put (command)
+    self.instructions.put (message, *args)
 
   def position_widget (self, position):
     return self.groups.get (position.lower ())
@@ -224,11 +225,11 @@ class QuizController (QtGui.QWidget):
     self.close ()
 
   def handle_response (self, message, args):
-    core.log.debug ("Response received: %s", message)
+    core.log.debug ("Response received: %s, %s", message, args)
+    message = unicode (message)
     response = "%s %s" % (message, " ".join ("%r" % arg for arg in args))
     self.responses.setText (response)
     handler = getattr (self, "handle_" + message.lower (), self.handle_default)
-    core.log.debug ("Response handler: %s", handler)
     return handler (*args)
 
 def main ():

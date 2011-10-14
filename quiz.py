@@ -70,8 +70,8 @@ class Engine (object):
     to a left-handle splash panel and a right hand scores stack with no
     teams defined.
     """
-    self.instructions = core.Queue ()
-    self.feedback = core.Queue ()
+    self.instructions = core.IPCQueue ()
+    self.feedback = core.IPCQueue ()
     self.panels = dict (
       left = screens.Splash (self, greetings="Westpark Quiz"),
       right = screens.Scores (self)
@@ -93,7 +93,7 @@ class Engine (object):
     returns anything, push that back on the feedback queue.
     """
     for action, args in self.instructions:
-      core.log.debug ("Engine Instruction: %r (%s)", action, args)
+      #~ core.log.debug ("Engine Instruction: %r (%s)", action, args)
       feedback = self.check_instruction (objects, action.strip ().lower (), args)
       if feedback:
         self.publish (*feedback)
@@ -103,7 +103,7 @@ class Engine (object):
     and return whatever its handler returns. NB an action which ends
     in a "?" invokes a get handler; any other action invokes a do handler.
     """
-    core.log.debug ("check_instruction: %s, %s (%s)", objects, action, args)
+    #~ core.log.debug ("check_instruction: %s, %s (%s)", objects, action, args)
     if action.endswith ("?"):
       verb = "get_" + action[:-1]
     else:
@@ -191,8 +191,9 @@ class Engine (object):
     """
     screen = self.panels.get (position)
     if screen:
-      core.log.debug ("Passing %s onto %s", args, screen)
-      feedback = self.check_instruction ([screen], args)
+      action, args = args[0], args[1:]
+      core.log.debug ("Passing %s: %s onto %s", action, args, screen)
+      feedback = self.check_instruction ([screen], action, args)
       if feedback:
         self.publish (position, *feedback)
 
@@ -230,6 +231,7 @@ class Engine (object):
   def get_position (self, position):
     """Return the class of the panel at position `position`
     """
+    core.log.debug ("Panels: %s", self.panels)
     return "POSITION", position, self.panels[position.lower ()].name
 
   def get_teams (self):
