@@ -48,12 +48,10 @@ class Screen (object):
     else:
       core.log.warn ("No renderer found named %s", renderer_name)
 
-  def _styles (self):
+  @classmethod
+  def _styles (cls):
     prefix = "render_"
-    return [i[len (prefix):] for i in dir (self) if i.startswith (prefix)]
-
-  def get_styles (self):
-    return self.position, "styles", self._styles ()
+    return [i[len (prefix):] for i in dir (cls) if i.startswith (prefix)]
 
   #
   # Default getters
@@ -66,7 +64,7 @@ class Screen (object):
     return self.name, info
 
   def get_styles (self):
-    return "Styles", self._styles ()
+    return "Styles", self.__class__._styles ()
 
   #
   # Renderers
@@ -83,6 +81,7 @@ class Screen (object):
 class ScreenWidget (QtGui.QWidget):
 
   name = ""
+  screen = Screen
 
   def __init__ (self, controller, position, *args, **kwargs):
     super (ScreenWidget, self).__init__ (*args, **kwargs)
@@ -93,6 +92,7 @@ class ScreenWidget (QtGui.QWidget):
     layout = QtGui.QHBoxLayout ()
     layout.addWidget (QtGui.QLabel ("Style"))
     self.styles = QtGui.QComboBox ()
+    self.styles.addItems (self.screen._styles ())
     layout.addWidget (self.styles)
     overall_layout.addLayout (layout)
 

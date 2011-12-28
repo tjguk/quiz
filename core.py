@@ -22,7 +22,9 @@ class IPCQueue (Queue.Queue):
 
 log = logging.getLogger ("Quiz")
 log.setLevel (logging.DEBUG)
-log.addHandler (logging.StreamHandler ())
+handler = logging.StreamHandler ()
+handler.setFormatter (logging.Formatter ("%(asctime)s %(module)s %(levelname)s - %(message)s"))
+log.addHandler (handler)
 log.superdebug = log.debug
 
 class Color (pygame.Color):

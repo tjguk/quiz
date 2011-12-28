@@ -17,8 +17,6 @@ import core
 import screen
 import screens
 
-_screens = dict ((cls.__name__.lower (), cls) for cls in screen.Screen.__subclasses__ ())
-
 #
 # Little piece of black magic to ensure no lag
 # occurs when playing sound. Must be done before
@@ -56,10 +54,9 @@ class Team (object):
 
 class Engine (object):
 
-  positions = dict (
+  panel_positions = dict (
     left = (0, 0, 0.66, 1.0),
     right = (0.66, 0, 0.34, 1.0),
-    full = (0, 0, 1, 1)
   )
   window_rect = core.Rect (0, 0, 400, 300)
   window_flags = pygame.RESIZABLE
@@ -72,10 +69,10 @@ class Engine (object):
     """
     self.instructions = core.IPCQueue ()
     self.feedback = core.IPCQueue ()
-    self.panels = dict (
-      left = screens.Splash (self, greetings="Westpark Quiz"),
-      right = screens.Scores (self)
-    )
+    self.panels = {
+      "left" : screens.Blank (self),
+      "right" : screens.Blank (self)
+    }
     self.teams = []
 
   def check_pygame_events (self, objects):
@@ -93,7 +90,6 @@ class Engine (object):
     returns anything, push that back on the feedback queue.
     """
     for action, args in self.instructions:
-      #~ core.log.debug ("Engine Instruction: %r (%s)", action, args)
       feedback = self.check_instruction (objects, action.strip ().lower (), args)
       if feedback:
         self.publish (*feedback)
@@ -103,7 +99,6 @@ class Engine (object):
     and return whatever its handler returns. NB an action which ends
     in a "?" invokes a get handler; any other action invokes a do handler.
     """
-    #~ core.log.debug ("check_instruction: %s, %s (%s)", objects, action, args)
     if action.endswith ("?"):
       verb = "get_" + action[:-1]
     else:
@@ -138,7 +133,7 @@ class Engine (object):
     self.window = pygame.display.set_mode (self.window_rect.size, self.window_flags)
     self.panel_rects = dict ()
     w, h = self.window_rect.size
-    for position, (pleft, ptop, pwidth, pheight) in self.positions.items ():
+    for position, (pleft, ptop, pwidth, pheight) in self.panel_positions.items ():
       self.panel_rects[position] = core.Rect (w * pleft, h * ptop, w * pwidth, h * pheight).inflate (-4, -4)
     self.repaint ()
 
@@ -178,11 +173,10 @@ class Engine (object):
     """Switch the left or right panel to a different screen
     """
     position = position.lower ()
-    assert position in self.positions
-    cls = _screens[screen_name.lower ()]
+    assert position in self.panel_positions
+    cls = screens._screens[screen_name.lower ()]
     if self.panels[position].name != screen_name:
       self.panels[position] = cls (self)
-      return "SWITCH", position, screen_name
 
   def _do_position (self, position, *args):
     """Send a command to the left or right panel. NB This
@@ -223,21 +217,24 @@ class Engine (object):
         commands.update (i[len ("get_"):] + "?" for i in dir (obj) if i.startswith ("get_"))
       return "HELP", sorted (commands)
 
-  def get_positions (self):
-    """Return a list of position names (typically "left" and "right")
-    """
-    return "POSITIONS", list (self.panels)
+  #~ def get_positions (self):
+    #~ """Return a list of position names (typically "left" and "right")
+    #~ """
+    #~ #
+    #~ # In order to retain a coherent order,
+    #~ #
+    #~ return "POSITIONS", self.
 
-  def get_position (self, position):
-    """Return the class of the panel at position `position`
-    """
-    core.log.debug ("Panels: %s", self.panels)
-    return "POSITION", position, self.panels[position.lower ()].name
+  #~ def get_position (self, position):
+    #~ """Return the class of the panel at position `position`
+    #~ """
+    #~ core.log.debug ("Panels: %s", self.panels)
+    #~ return "POSITION", position, self.panels[position.lower ()].name
 
   def get_teams (self):
     """Return a list of teams
     """
-    return "TEAM", [team.name for team in self.teams]
+    return "TEAMS", [team.name for team in self.teams]
 
   def get_scores (self):
     """Return a list of scores, one for each team

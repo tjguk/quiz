@@ -6,6 +6,18 @@ from PyQt4 import QtCore, QtGui
 import core
 import screen
 
+class Blank (screen.Screen):
+
+  name = "Blank"
+
+  def render_default (self, surface, rect):
+    pass
+
+class BlankWidget (screen.ScreenWidget):
+
+  screen = Blank
+  name = screen.name
+
 #
 # Splash - screen & widget
 #
@@ -31,7 +43,8 @@ class Splash (screen.Screen):
 
 class SplashWidget (screen.ScreenWidget):
 
-  name = "Splash"
+  screen = Splash
+  name = screen.name
 
   def widgets (self):
     layout = QtGui.QHBoxLayout ()
@@ -173,7 +186,8 @@ class Countdown (screen.Screen):
 
 class CountdownWidget (screen.ScreenWidget):
 
-  name = "Countdown"
+  screen = Countdown
+  name = screen.name
 
   def widgets (self):
     layout = QtGui.QHBoxLayout ()
@@ -284,4 +298,7 @@ class Scores (screen.Screen):
 class ScoresWidget (screen.ScreenWidget):
 
   name = "Scores"
+  screen = Scores
 
+_screens = dict ((cls.__name__.lower (), cls) for cls in screen.Screen.__subclasses__ ())
+_widgets = dict ((cls.name.lower (), cls) for cls in screen.ScreenWidget.__subclasses__ ())

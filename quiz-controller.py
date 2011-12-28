@@ -1,9 +1,6 @@
 import os, sys
-import json
-import logging
-import shlex
+import socket
 import subprocess
-import time
 
 import Pyro4
 from PyQt4 import QtCore, QtGui
@@ -48,12 +45,10 @@ class Panel (QtGui.QGroupBox):
       self.stack.addWidget (cls (controller, position))
 
   def on_selector (self, index):
+    core.log.debug ("on_selector: %d, item %r", index, self.selector.itemText (index))
     self.stack.setCurrentIndex (index)
-    self.instructions.send_command ("SWITCH", self.position, unicode (self.selector.itemText (index)))
-    self.instructions.send_command (self.position, "STYLES?")
-
-  def handle_styles (self, *rest):
-    core.log.debug ("handle_styles: %s", rest)
+    screen_name = unicode (self.selector.itemText (index))
+    self.instructions.send_command ("SWITCH", self.position, screen_name)
 
 class QuizController (QtGui.QWidget):
 
@@ -74,9 +69,9 @@ class QuizController (QtGui.QWidget):
 
     self.panel_layout = QtGui.QHBoxLayout ()
     self.panels = {}
-    #
-    # Panels wlil be added via the handle_position handler below
-    #
+    for position in "left", "right":
+      panel = self.panels[position.lower ()] = Panel (self, position)
+      self.panel_layout.addWidget (panel)
     overall_layout.addLayout (self.panel_layout)
     self.add_controller (overall_layout)
     self.setLayout (overall_layout)
@@ -85,8 +80,6 @@ class QuizController (QtGui.QWidget):
     self.send_command ("TEAMS?")
     self.send_command ("COLOURS?")
     self.send_command ("SCORES?")
-    self.send_command ("LEFT STATE?")
-    self.send_command ("RIGHT STATE?")
 
   def add_teams (self, overall_layout):
     self.teams = []
@@ -109,7 +102,7 @@ class QuizController (QtGui.QWidget):
       overall_layout.addLayout (layout)
 
       def set_team_name (new_name, n_team=i, team_name=team_name, team_score=team_score):
-        self.send_command ("name"< n_team, team_name.text ())
+        self.send_command ("name", n_team, unicode (team_name.text ()))
         if not team_name.styleSheet ():
           self.send_command ("COLOURS?")
       def set_team_score (new_score, n_team=i):
@@ -153,6 +146,7 @@ class QuizController (QtGui.QWidget):
 
     command = "%s %s" % (message, " ".join (args))
     self.command.setText (command)
+    core.log.debug ("send_command: %s, %r", message, args)
     self.instructions.put (message, *args)
 
   def position_widget (self, position):
@@ -161,50 +155,45 @@ class QuizController (QtGui.QWidget):
   def handle_default (self, *args, **kwargs):
     core.log.debug ("handle_default: %s, %s", str (args), str (kwargs))
 
-  def handle_positions (self, positions):
-    """Handle the POSITIONS event by constructing a corresponding
-    number of panels. Fire off a command to query for the screen
-    each panel is currently showing.
-    """
-    for position in positions:
-      panel = self.panels[position.lower ()] = Panel (self, position)
-      self.panel_layout.addWidget (panel)
-      self.send_command ("POSITION?", position)
+  #~ def add_positions (self):
+    #~ for position in "left", "right":
+      #~ panel = self.panels[position.lower ()] = Panel (self, position)
+      #~ self.panel_layout.addWidget (panel)
 
-  def handle_position (self, position, screen_name):
-    """Handle the POSITION event by selecting the corresponding
-    screen from the stacked widget.
-    """
-    panel = self.panels[position.lower ()]
-    if panel.selector.currentText () != screen_name:
-      panel.selector.setCurrentText (screen_name)
-      #
-      # Changing the selector will cause a STATE? query to fire
-      #
+  #~ def handle_position (self, position, screen_name):
+    #~ """Handle the POSITION event by selecting the corresponding
+    #~ screen from the stacked widget.
+    #~ """
+    #~ panel = self.panels[position.lower ()]
+    #~ if panel.selector.currentText () != screen_name:
+      #~ panel.selector.setCurrentIndex (panel.selector.findText (screen_name))
+      #~ #
+      #~ # Changing the selector will cause a STATE? query to fire
+      #~ #
 
-  def _handle_position (self, position, cls_name, state):
-    core.log.debug ("handle_position: %s, %s", position, rest)
+  #~ def _handle_position (self, position, cls_name, state):
+    #~ core.log.debug ("handle_position: %s, %s", position, rest)
 
-    group = self.groups[position]
-    group.selector.setCurrentIndex (group.selector.findText (cls_name))
-    screen_widget = group.stack.currentWidget ()
+    #~ group = self.groups[position]
+    #~ group.selector.setCurrentIndex (group.selector.findText (cls_name))
+    #~ screen_widget = group.stack.currentWidget ()
 
-    styles_combo = screen_widget.styles
-    if "styles" in state:
-      styles_combo.clear ()
-      styles_combo.addItems ([item.strip () for item in state.pop ("styles")])
-    if "style" in state:
-      screen_widget.styles.setCurrentIndex (screen_widget.styles.findText (state.pop ("style")))
-    for k, v in state.items ():
-      subwidget = getattr (screen_widget, k.lower (), None)
-      if subwidget:
-        subwidget.setText (v)
+    #~ styles_combo = screen_widget.styles
+    #~ if "styles" in state:
+      #~ styles_combo.clear ()
+      #~ styles_combo.addItems ([item.strip () for item in state.pop ("styles")])
+    #~ if "style" in state:
+      #~ screen_widget.styles.setCurrentIndex (screen_widget.styles.findText (state.pop ("style")))
+    #~ for k, v in state.items ():
+      #~ subwidget = getattr (screen_widget, k.lower (), None)
+      #~ if subwidget:
+        #~ subwidget.setText (v)
 
-  def handle_left (self, *args, **kwargs):
-    self._handle_position ("left", *args, **kwargs)
+  #~ def handle_left (self, *args, **kwargs):
+    #~ self._handle_position ("left", *args, **kwargs)
 
-  def handle_right (self, *args, **kwargs):
-    self._handle_position ("right", *args, **kwargs)
+  #~ def handle_right (self, *args, **kwargs):
+    #~ self._handle_position ("right", *args, **kwargs)
 
   def handle_teams (self, teams):
     for n_team, new_name in enumerate (teams):
@@ -239,4 +228,8 @@ def main ():
   return app.exec_ ()
 
 if __name__ == '__main__':
+  try:
+    socket.socket ().connect (("localhost", 1234))
+  except socket.error:
+    subprocess.Popen ([sys.executable, "quiz.py"])
   sys.exit (main (*sys.argv[1:]))
