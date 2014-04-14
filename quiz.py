@@ -5,10 +5,10 @@ import itertools
 import threading
 try:
     import winsound
-    def beep (frequency, duration):
-        winsound.Beep (frequency, duration)
+    def beep(frequency, duration):
+        winsound.Beep(frequency, duration)
 except ImportError:
-    def beep (frequency, duration):
+    def beep(frequency, duration):
         pass
 
 import pygame
@@ -23,12 +23,12 @@ import screens
 # occurs when playing sound. Must be done before
 # pygame.init
 #
-pygame.mixer.pre_init (44100, -16, 2, 1024)
-pygame.init ()
+pygame.mixer.pre_init(44100, -16, 2, 1024)
+pygame.init()
 
-def manage_instructions (instructions, feedback):
-    daemon = Pyro4.Daemon (port=1234)
-    Pyro4.Daemon.serveSimple (
+def manage_instructions(instructions, feedback):
+    daemon = Pyro4.Daemon(port=1234)
+    Pyro4.Daemon.serveSimple(
         {
             instructions : "quiz.instructions",
             feedback : "quiz.feedback"
@@ -37,269 +37,269 @@ def manage_instructions (instructions, feedback):
         ns=False
     )
 
-class Team (object):
+class Team(object):
     """A team is mostly a Bunch class with a cycle of colours to choose from
     """
 
-    colours = itertools.cycle (["red", "green", "yellow", "blue", "purple", "orange", "royalblue", "salmon", "wheat"])
-    names = iter (["Haddock", "Kippers", "Plaice", "Trout", "Salmon", "Halibut"])
+    colours = itertools.cycle(["red", "green", "yellow", "blue", "purple", "orange", "royalblue", "salmon", "wheat"])
+    names = iter(["Haddock", "Kippers", "Plaice", "Trout", "Salmon", "Halibut"])
 
-    def __init__ (self, name, score=0):
-        self.colour = core.Color (self.colours.next ())
-        self.name = name or self.names.next ()
-        self.text_colour = core.Color.light if self.colour.is_dark () else core.Color.dark
+    def __init__(self, name, score=0):
+        self.colour = core.Color(self.colours.next())
+        self.name = name or self.names.next()
+        self.text_colour = core.Color.light if self.colour.is_dark() else core.Color.dark
         self.score = score
 
-    def __repr__ (self):
+    def __repr__(self):
         return "<%s - %s>" % (self.__class__.__name__, self.name)
 
-class Engine (object):
+class Engine(object):
 
-    panel_positions = dict (
+    panel_positions = dict(
         left = (0, 0, 0.66, 1.0),
         right = (0.66, 0, 0.34, 1.0),
     )
-    window_rect = core.Rect (0, 0, 400, 300)
+    window_rect = core.Rect(0, 0, 400, 300)
     window_flags = pygame.RESIZABLE
     background_colour = core.Color.light
 
-    def __init__ (self):
+    def __init__(self):
         """Create the instruction and feedback queues and default the screen
         to a left-handle splash panel and a right hand scores stack with no
         teams defined.
         """
-        self.instructions = core.IPCQueue ()
-        self.feedback = core.IPCQueue ()
+        self.instructions = core.IPCQueue()
+        self.feedback = core.IPCQueue()
         self.panels = {
-            "left" : screens.Blank (self),
-            "right" : screens.Blank (self)
+            "left" : screens.Blank(self),
+            "right" : screens.Blank(self)
         }
         self.teams = []
 
-    def check_pygame_events (self, objects):
+    def check_pygame_events(self, objects):
         """Pull all pygame events off the pygame queue and pass them to
         the first object which will have them.
         """
-        for event in pygame.event.get ():
+        for event in pygame.event.get():
             for obj in objects:
-                if obj.handle_pygame_event (event):
+                if obj.handle_pygame_event(event):
                     break
 
-    def check_instructions (self, objects):
+    def check_instructions(self, objects):
         """Pull all instructions off the instruction queue and pass them to
         the first object which will have them. If the object's handler
         returns anything, push that back on the feedback queue.
         """
         for action, args in self.instructions:
-            feedback = self.check_instruction (objects, action.strip ().lower (), args)
+            feedback = self.check_instruction(objects, action.strip().lower(), args)
             if feedback:
-                self.publish (*feedback)
+                self.publish(*feedback)
 
-    def check_instruction (self, objects, action, args):
+    def check_instruction(self, objects, action, args):
         """Find the first of a list of objects which can handle an action
         and return whatever its handler returns. NB an action which ends
         in a "?" invokes a get handler; any other action invokes a do handler.
         """
-        if action.endswith ("?"):
+        if action.endswith("?"):
             verb = "get_" + action[:-1]
         else:
             verb = "do_" + action
 
         for obj in objects:
-            if hasattr (obj, verb):
-                return getattr (obj, verb) (*args)
+            if hasattr(obj, verb):
+                return getattr(obj, verb) (*args)
 
-    def handle_pygame_event (self, event):
+    def handle_pygame_event(self, event):
         """Handle core pygame events: quit & resize. For unhandled events,
         return False so the caller will pass them onto other screens.
         """
         if event.type == pygame.QUIT:
-            self.instructions.put ("QUIT")
+            self.instructions.put("QUIT")
             return True
         elif event.type == pygame.KEYUP and event.key == pygame.K_ESCAPE:
-            self.instructions.put ("QUIT")
+            self.instructions.put("QUIT")
             return True
         elif event.type == pygame.VIDEORESIZE:
-            self.do_resize (event.size)
+            self.do_resize(event.size)
             return True
         else:
             return False
 
-    def do_resize (self, size=None):
+    def do_resize(self, size=None):
         """Resize the window to a particular size, defaulting to the class's default
         window size so it can be used from the main engine.
         """
         if size:
             self.window_rect.size = size
-        self.window = pygame.display.set_mode (self.window_rect.size, self.window_flags)
-        self.panel_rects = dict ()
+        self.window = pygame.display.set_mode(self.window_rect.size, self.window_flags)
+        self.panel_rects = dict()
         w, h = self.window_rect.size
-        for position, (pleft, ptop, pwidth, pheight) in self.panel_positions.items ():
-            self.panel_rects[position] = core.Rect (w * pleft, h * ptop, w * pwidth, h * pheight).inflate (-4, -4)
-        self.repaint ()
+        for position, (pleft, ptop, pwidth, pheight) in self.panel_positions.items():
+            self.panel_rects[position] = core.Rect(w * pleft, h * ptop, w * pwidth, h * pheight).inflate(-4, -4)
+        self.repaint()
 
-    def do_name (self, n_team, name):
-        """Set the name for a team (this is often done incrementally from
+    def do_name(self, n_team, name):
+        """Set the name for a team(this is often done incrementally from
         the controller, so the name is likely to be a part name
         """
-        for i in range (1 + n_team - len (self.teams)):
-            self.teams.append (Team (""))
+        for i in range(1 + n_team - len(self.teams)):
+            self.teams.append(Team(""))
         self.teams[n_team].name = name
 
-    def do_remove (self, n_team):
+    def do_remove(self, n_team):
         """Remove a team from the scoreboard
         """
         self.teams = self.teams[:n_team] + self.teams[n_team:]
 
-    def do_score (self, which_team, value):
+    def do_score(self, which_team, value):
         """Set the score for a team.
         """
         team = self.teams[which_team]
         score0 = team.score
         team.score = value
         if team.score > score0:
-            beep (1440, 100)
-            beep (2880, 200)
+            beep(1440, 100)
+            beep(2880, 200)
         elif team.score < score0:
-            beep (440, 100)
-            beep (220, 200)
-        pygame.event.post (core.scores_changed_event)
+            beep(440, 100)
+            beep(220, 200)
+        pygame.event.post(core.scores_changed_event)
 
-    def do_quit (self):
-        self.publish ("QUIT")
-        pygame.time.wait (250)
-        sys.exit ()
+    def do_quit(self):
+        self.publish("QUIT")
+        pygame.time.wait(250)
+        sys.exit()
 
-    def do_switch (self, position, screen_name):
+    def do_switch(self, position, screen_name):
         """Switch the left or right panel to a different screen
         """
-        position = position.lower ()
+        position = position.lower()
         assert position in self.panel_positions
-        cls = screens._screens[screen_name.lower ()]
+        cls = screens._screens[screen_name.lower()]
         if self.panels[position].name != screen_name:
-            self.panels[position] = cls (self)
+            self.panels[position] = cls(self)
 
-    def _do_position (self, position, *args):
+    def _do_position(self, position, *args):
         """Send a command to the left or right panel. NB This
         cannot be used to switch the screen underlying the panel;
         for that, use SWITCH.
         """
-        screen = self.panels.get (position)
+        screen = self.panels.get(position)
         if screen:
             action, args = args[0], args[1:]
-            core.log.debug ("Passing %s: %s onto %s", action, args, screen)
-            feedback = self.check_instruction ([screen], action, args)
+            core.log.debug("Passing %s: %s onto %s", action, args, screen)
+            feedback = self.check_instruction([screen], action, args)
             if feedback:
-                self.publish (position, *feedback)
+                self.publish(position, *feedback)
 
-    def do_left (self, *args):
+    def do_left(self, *args):
         """Pass the command and its parameters through to the left-hand panel
         """
-        return self._do_position ("left", *args)
+        return self._do_position("left", *args)
 
-    def do_right (self, *args):
+    def do_right(self, *args):
         """Pass the command and its parameters through to the right-hand panel
         """
-        return self._do_position ("right", *args)
+        return self._do_position("right", *args)
 
-    def get_help (self, command=None):
+    def get_help(self, command=None):
         """If a command is specified, return the parameters for that command, otherwise
         return a list of valid commands
         """
         if command:
-            fn = getattr (self, ("get_" if command.endswith ("?") else "do_") + command.lower (), None)
+            fn = getattr(self, ("get_" if command.endswith("?") else "do_") + command.lower(), None)
             if fn:
-                args = inspect.getargspec (fn).args[1:]
-                return "HELP", command.upper (), args
+                args = inspect.getargspec(fn).args[1:]
+                return "HELP", command.upper(), args
         else:
-            commands = set ()
-            for obj in [self] + self.panels.values ():
-                commands.update (i[len ("do_"):] for i in dir (obj) if i.startswith ("do_"))
-                commands.update (i[len ("get_"):] + "?" for i in dir (obj) if i.startswith ("get_"))
-            return "HELP", sorted (commands)
+            commands = set()
+            for obj in [self] + self.panels.values():
+                commands.update(i[len("do_"):] for i in dir(obj) if i.startswith("do_"))
+                commands.update(i[len("get_"):] + "?" for i in dir(obj) if i.startswith("get_"))
+            return "HELP", sorted(commands)
 
-    #~ def get_positions (self):
-        #~ """Return a list of position names (typically "left" and "right")
+    #~ def get_positions(self):
+        #~ """Return a list of position names(typically "left" and "right")
         #~ """
         #~ #
         #~ # In order to retain a coherent order,
         #~ #
         #~ return "POSITIONS", self.
 
-    #~ def get_position (self, position):
+    #~ def get_position(self, position):
         #~ """Return the class of the panel at position `position`
         #~ """
-        #~ core.log.debug ("Panels: %s", self.panels)
-        #~ return "POSITION", position, self.panels[position.lower ()].name
+        #~ core.log.debug("Panels: %s", self.panels)
+        #~ return "POSITION", position, self.panels[position.lower()].name
 
-    def get_teams (self):
+    def get_teams(self):
         """Return a list of teams
         """
         return "TEAMS", [team.name for team in self.teams]
 
-    def get_scores (self):
+    def get_scores(self):
         """Return a list of scores, one for each team
         """
         return "SCORES", [team.score for team in self.teams]
 
-    def get_colours (self):
+    def get_colours(self):
         """Return a list of HTML-style #rrggbb colours, one for each team
         """
         return "COLOURS", ["#%02x%02x%02x" % team.colour[:3] for team in self.teams]
 
-    def repaint (self):
+    def repaint(self):
         """Completely repaint the screen,
         """
-        self.window.fill (self.background_colour)
-        for position, screen in self.panels.items ():
+        self.window.fill(self.background_colour)
+        for position, screen in self.panels.items():
             #
             # FIXME: is_dirty is probably redundant
             #
             screen.is_dirty = True
 
-    def publish (self, message, *args):
+    def publish(self, message, *args):
         """Send a message and parameters back through the feedback queue
         """
-        core.log.debug ("Publish %s: %s", message, args)
-        self.feedback.put (message, *args)
+        core.log.debug("Publish %s: %s", message, args)
+        self.feedback.put(message, *args)
 
-    def run (self):
+    def run(self):
         #
         # Set up two Pyro-linked queues: one for instructions; the other
         # for feedback from the instruction handlers.
         #
-        instruction_manager = threading.Thread (
+        instruction_manager = threading.Thread(
             target=manage_instructions,
             args=(self.instructions, self.feedback)
         )
         instruction_manager.daemon = True
-        instruction_manager.start ()
+        instruction_manager.start()
 
         #
         # Reset the screen to its default size and caption
         #
-        self.do_resize ()
-        pygame.display.set_caption ("Westpark Quiz")
+        self.do_resize()
+        pygame.display.set_caption("Westpark Quiz")
 
         #
         # At no more than 5 frames a second, render all current panels
         # and check for incoming instructions or pygame events.
         #
-        clock = pygame.time.Clock ()
+        clock = pygame.time.Clock()
         while True:
-            for position, screen in self.panels.items ():
-                screen.render (self.window, self.panel_rects[position])
-            pygame.display.flip ()
-            clock.tick (5)
+            for position, screen in self.panels.items():
+                screen.render(self.window, self.panel_rects[position])
+            pygame.display.flip()
+            clock.tick(5)
 
-            objects = self.panels.values () + [self]
+            objects = self.panels.values() + [self]
             try:
-                self.check_pygame_events (objects)
-                self.check_instructions (objects)
+                self.check_pygame_events(objects)
+                self.check_instructions(objects)
             except Exception, err:
-                core.log.exception ("Problem in main loop")
+                core.log.exception("Problem in main loop")
                 # core.log errors and then ignore them in an attempt
                 # not to crash out midstream
 
 if __name__ == '__main__':
-    Engine (*sys.argv[1:]).run ()
+    Engine(*sys.argv[1:]).run()

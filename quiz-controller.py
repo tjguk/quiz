@@ -25,136 +25,136 @@ class FeedbackReader (QtCore.QThread):
                 message, args = feedback
                 self.message_received.emit (message, args)
 
-class Panel (QtGui.QGroupBox):
+class Panel(QtGui.QGroupBox):
 
-    def __init__ (self, controller, position, *args, **kwargs):
-        super (Panel, self).__init__ (position.title (), *args, **kwargs)
+    def __init__(self, controller, position, *args, **kwargs):
+        super(Panel, self).__init__(position.title (), *args, **kwargs)
         self.instructions = controller
-        self.position = position.lower ()
+        self.position = position.lower()
 
-        layout = QtGui.QVBoxLayout ()
-        self.selector = QtGui.QComboBox ()
-        self.selector.currentIndexChanged.connect (self.on_selector)
+        layout = QtGui.QVBoxLayout()
+        self.selector = QtGui.QComboBox()
+        self.selector.currentIndexChanged.connect(self.on_selector)
 
-        layout.addWidget (self.selector)
-        self.stack = QtGui.QStackedWidget ()
-        layout.addWidget (self.stack)
-        self.setLayout (layout)
+        layout.addWidget(self.selector)
+        self.stack = QtGui.QStackedWidget()
+        layout.addWidget(self.stack)
+        self.setLayout(layout)
 
-        for cls in screen.ScreenWidget.__subclasses__ ():
-            self.selector.addItem (cls.name)
-            self.stack.addWidget (cls (controller, position))
+        for cls in screen.ScreenWidget.__subclasses__():
+            self.selector.addItem(cls.name)
+            self.stack.addWidget(cls(controller, position))
 
-    def on_selector (self, index):
-        core.log.debug ("on_selector: %d, item %r", index, self.selector.itemText (index))
-        self.stack.setCurrentIndex (index)
-        screen_name = unicode (self.selector.itemText (index))
-        self.instructions.send_command ("SWITCH", self.position, screen_name)
+    def on_selector(self, index):
+        core.log.debug("on_selector: %d, item %r", index, self.selector.itemText(index))
+        self.stack.setCurrentIndex(index)
+        screen_name = unicode(self.selector.itemText(index))
+        self.instructions.send_command("SWITCH", self.position, screen_name)
 
-class QuizController (QtGui.QWidget):
+class QuizController(QtGui.QWidget):
 
     COMMAND_MAILSLOT_NAME = "quiz"
     RESPONSE_MAILSLOT_NAME = "sub"
 
-    def __init__ (self, *args, **kwargs):
-        super (QuizController, self).__init__ (*args, **kwargs)
-        self.setWindowTitle ("Quiz Controller")
+    def __init__(self, *args, **kwargs):
+        super(QuizController, self).__init__(*args, **kwargs)
+        self.setWindowTitle("Quiz Controller")
 
-        self.instructions = Pyro4.Proxy ("PYRO:quiz.instructions@localhost:1234")
-        self.responder = FeedbackReader (Pyro4.Proxy ("PYRO:quiz.feedback@localhost:1234"))
-        self.responder.message_received.connect (self.handle_response)
-        self.responder.start ()
+        self.instructions = Pyro4.Proxy("PYRO:quiz.instructions@localhost:1234")
+        self.responder = FeedbackReader(Pyro4.Proxy ("PYRO:quiz.feedback@localhost:1234"))
+        self.responder.message_received.connect(self.handle_response)
+        self.responder.start()
 
-        overall_layout = QtGui.QVBoxLayout ()
-        self.add_teams (overall_layout)
+        overall_layout = QtGui.QVBoxLayout()
+        self.add_teams(overall_layout)
 
-        self.panel_layout = QtGui.QHBoxLayout ()
+        self.panel_layout = QtGui.QHBoxLayout()
         self.panels = {}
         for position in "left", "right":
-            panel = self.panels[position.lower ()] = Panel (self, position)
-            self.panel_layout.addWidget (panel)
-        overall_layout.addLayout (self.panel_layout)
-        self.add_controller (overall_layout)
-        self.setLayout (overall_layout)
+            panel = self.panels[position.lower()] = Panel(self, position)
+            self.panel_layout.addWidget(panel)
+        overall_layout.addLayout(self.panel_layout)
+        self.add_controller(overall_layout)
+        self.setLayout(overall_layout)
 
-        self.send_command ("POSITIONS?")
-        self.send_command ("TEAMS?")
-        self.send_command ("COLOURS?")
-        self.send_command ("SCORES?")
+        self.send_command("POSITIONS?")
+        self.send_command("TEAMS?")
+        self.send_command("COLOURS?")
+        self.send_command("SCORES?")
 
-    def add_teams (self, overall_layout):
+    def add_teams(self, overall_layout):
         self.teams = []
-        for i in range (4):
+        for i in range(4):
             team = (
                 team_name,
                 team_score,
                 team_plus,
                 team_minus
             ) = (
-                QtGui.QLineEdit (),
-                QtGui.QLineEdit (""),
-                QtGui.QPushButton ("+"),
-                QtGui.QPushButton ("-")
+                QtGui.QLineEdit(),
+                QtGui.QLineEdit(""),
+                QtGui.QPushButton("+"),
+                QtGui.QPushButton("-")
             )
-            self.teams.append (team)
-            layout = QtGui.QHBoxLayout ()
+            self.teams.append(team)
+            layout = QtGui.QHBoxLayout()
             for widget in team:
-                layout.addWidget (widget)
-            overall_layout.addLayout (layout)
+                layout.addWidget(widget)
+            overall_layout.addLayout(layout)
 
-            def set_team_name (new_name, n_team=i, team_name=team_name, team_score=team_score):
-                self.send_command ("name", n_team, unicode (team_name.text ()))
+            def set_team_name(new_name, n_team=i, team_name=team_name, team_score=team_score):
+                self.send_command("name", n_team, unicode(team_name.text()))
                 if not team_name.styleSheet ():
-                    self.send_command ("COLOURS?")
-            def set_team_score (new_score, n_team=i):
-                self.send_command ("SCORE", n_team, new_score)
-            def set_team_plus (n_team=i, team_score=team_score):
-                score = 1 + int (team_score.text () or 0)
-                team_score.setText (str (score))
-            def set_team_minus (n_team=i, team_score=team_score):
-                score = int (team_score.text () or 0) - 1
-                team_score.setText (str (score))
+                    self.send_command("COLOURS?")
+            def set_team_score(new_score, n_team=i):
+                self.send_command("SCORE", n_team, new_score)
+            def set_team_plus(n_team=i, team_score=team_score):
+                score = 1 + int(team_score.text() or 0)
+                team_score.setText(str(score))
+            def set_team_minus(n_team=i, team_score=team_score):
+                score = int(team_score.text() or 0) - 1
+                team_score.setText(str(score))
 
-            team_name.textEdited.connect (set_team_name)
-            team_score.textChanged.connect (set_team_score)
-            team_plus.pressed.connect (set_team_plus)
-            team_minus.pressed.connect (set_team_minus)
+            team_name.textEdited.connect(set_team_name)
+            team_score.textChanged.connect(set_team_score)
+            team_plus.pressed.connect(set_team_plus)
+            team_minus.pressed.connect(set_team_minus)
 
-    def add_controller (self, overall_layout):
-        command_label = QtGui.QLabel ("Command")
-        self.command = QtGui.QLineEdit ()
-        self.send = QtGui.QPushButton ("&Send")
-        controller_layout = QtGui.QHBoxLayout ()
-        controller_layout.addWidget (command_label)
-        controller_layout.addWidget (self.command)
-        controller_layout.addWidget (self.send)
-        overall_layout.addLayout (controller_layout)
-        self.send.clicked.connect (self.send_command)
+    def add_controller(self, overall_layout):
+        command_label = QtGui.QLabel("Command")
+        self.command = QtGui.QLineEdit()
+        self.send = QtGui.QPushButton("&Send")
+        controller_layout = QtGui.QHBoxLayout()
+        controller_layout.addWidget(command_label)
+        controller_layout.addWidget(self.command)
+        controller_layout.addWidget(self.send)
+        overall_layout.addLayout(controller_layout)
+        self.send.clicked.connect(self.send_command)
 
-        self.responses = QtGui.QLabel ()
-        responses_layout = QtGui.QHBoxLayout ()
-        responses_layout.addWidget (self.responses)
-        overall_layout.addLayout (responses_layout)
+        self.responses = QtGui.QLabel()
+        responses_layout = QtGui.QHBoxLayout()
+        responses_layout.addWidget(self.responses)
+        overall_layout.addLayout(responses_layout)
 
-    def send_command (self, message=None, *args):
+    def send_command(self, message=None, *args):
         if not message:
-            commands = unicode (self.command.text ()).encode ("iso-8859-1").split ()
+            commands = unicode(self.command.text()).encode("iso-8859-1").split()
             if not commands:
-                core.log.warn ("No command")
+                core.log.warn("No command")
                 return
             else:
                 message, args = commands[0], commands[1:]
 
-        command = "%s %s" % (message, " ".join (args))
-        self.command.setText (command)
-        core.log.debug ("send_command: %s, %r", message, args)
-        self.instructions.put (message, *args)
+        core.log.debug("send_command: %s, %r", message, args)
+        command = "%s %s" % (message, " ".join(str(arg) for arg in args))
+        self.command.setText(command)
+        self.instructions.put(message, *args)
 
-    def position_widget (self, position):
-        return self.groups.get (position.lower ())
+    def position_widget(self, position):
+        return self.groups.get(position.lower())
 
-    def handle_default (self, *args, **kwargs):
-        core.log.debug ("handle_default: %s, %s", str (args), str (kwargs))
+    def handle_default(self, *args, **kwargs):
+        core.log.debug("handle_default: %s, %s", str(args), str(kwargs))
 
     #~ def add_positions (self):
         #~ for position in "left", "right":
@@ -223,10 +223,10 @@ class QuizController (QtGui.QWidget):
         return handler (*args)
 
 def main ():
-    app = QtGui.QApplication ([])
+    app = QtGui.QApplication([])
     quiz_controller = QuizController()
-    quiz_controller.show ()
-    return app.exec_ ()
+    quiz_controller.show()
+    return app.exec_()
 
 if __name__ == '__main__':
     try:
