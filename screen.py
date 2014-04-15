@@ -121,7 +121,7 @@ class ScreenWidget(QtGui.QWidget):
     def on_style(self, index):
         core.log.debug("Handling style change for position %s, style %s", self.position, index)
         core.log.debug(self.styles.itemText (index))
-        self.send_command("style", self.styles.currentText ())
+        self.send_command("style", unicode(self.styles.currentText ()).encode("iso-8859-1"))
 
     def on_apply(self):
         raise NotImplementedError

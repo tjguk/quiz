@@ -23,7 +23,7 @@ class IPCQueue(Queue.Queue):
 log = logging.getLogger("Quiz")
 log.setLevel(logging.DEBUG)
 handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("%(asctime)s %(module)s %(levelname)s - %(message)s"))
+handler.setFormatter(logging.Formatter("%(asctime)s %(module)s %(funcName)s %(levelname)s - %(message)s"))
 log.addHandler(handler)
 log.superdebug = log.debug
 

@@ -10,25 +10,26 @@ import core
 import screen
 import screens
 
-class FeedbackReader (QtCore.QThread):
+class FeedbackReader(QtCore.QThread):
 
-    message_received = QtCore.pyqtSignal (unicode, tuple)
+    message_received = QtCore.pyqtSignal(unicode, tuple)
 
-    def __init__ (self, proxy):
-        super (FeedbackReader, self).__init__ ()
+    def __init__(self, proxy):
+        super(FeedbackReader, self).__init__()
         self.feedback = proxy
 
-    def run (self):
+    def run(self):
         while True:
-            feedback = self.feedback.get ()
+            feedback = self.feedback.get()
+            core.log.debug("feedback: %r", feedback)
             if feedback:
                 message, args = feedback
-                self.message_received.emit (message, args)
+                self.message_received.emit(message, args)
 
 class Panel(QtGui.QGroupBox):
 
     def __init__(self, controller, position, *args, **kwargs):
-        super(Panel, self).__init__(position.title (), *args, **kwargs)
+        super(Panel, self).__init__(position.title(), *args, **kwargs)
         self.instructions = controller
         self.position = position.lower()
 
@@ -61,7 +62,7 @@ class QuizController(QtGui.QWidget):
         self.setWindowTitle("Quiz Controller")
 
         self.instructions = Pyro4.Proxy("PYRO:quiz.instructions@localhost:1234")
-        self.responder = FeedbackReader(Pyro4.Proxy ("PYRO:quiz.feedback@localhost:1234"))
+        self.responder = FeedbackReader(Pyro4.Proxy("PYRO:quiz.feedback@localhost:1234"))
         self.responder.message_received.connect(self.handle_response)
         self.responder.start()
 
@@ -77,10 +78,13 @@ class QuizController(QtGui.QWidget):
         self.add_controller(overall_layout)
         self.setLayout(overall_layout)
 
-        self.send_command("POSITIONS?")
-        self.send_command("TEAMS?")
+        #
+        # The first response is always lost. Not sure why.
+        #
+        self.send_command("COLOURS?")
         self.send_command("COLOURS?")
         self.send_command("SCORES?")
+        self.send_command("TEAMS?")
 
     def add_teams(self, overall_layout):
         self.teams = []
@@ -104,10 +108,10 @@ class QuizController(QtGui.QWidget):
 
             def set_team_name(new_name, n_team=i, team_name=team_name, team_score=team_score):
                 self.send_command("name", n_team, unicode(team_name.text()))
-                if not team_name.styleSheet ():
+                if not team_name.styleSheet():
                     self.send_command("COLOURS?")
             def set_team_score(new_score, n_team=i):
-                self.send_command("SCORE", n_team, new_score)
+                self.send_command("SCORE", str(n_team), str(new_score))
             def set_team_plus(n_team=i, team_score=team_score):
                 score = 1 + int(team_score.text() or 0)
                 team_score.setText(str(score))
@@ -145,9 +149,11 @@ class QuizController(QtGui.QWidget):
             else:
                 message, args = commands[0], commands[1:]
 
-        core.log.debug("send_command: %s, %r", message, args)
+        args = [(unicode(arg) if isinstance(arg, QtCore.QString) else arg) for arg in args]
         command = "%s %s" % (message, " ".join(str(arg) for arg in args))
-        self.command.setText(command)
+        core.log.debug("send_command: %s", command)
+        if hasattr(self, "command"):
+            self.command.setText(command)
         self.instructions.put(message, *args)
 
     def position_widget(self, position):
@@ -156,73 +162,73 @@ class QuizController(QtGui.QWidget):
     def handle_default(self, *args, **kwargs):
         core.log.debug("handle_default: %s, %s", str(args), str(kwargs))
 
-    #~ def add_positions (self):
+    #~ def add_positions(self):
         #~ for position in "left", "right":
-            #~ panel = self.panels[position.lower ()] = Panel (self, position)
-            #~ self.panel_layout.addWidget (panel)
+            #~ panel = self.panels[position.lower()] = Panel(self, position)
+            #~ self.panel_layout.addWidget(panel)
 
-    #~ def handle_position (self, position, screen_name):
+    #~ def handle_position(self, position, screen_name):
         #~ """Handle the POSITION event by selecting the corresponding
         #~ screen from the stacked widget.
         #~ """
-        #~ panel = self.panels[position.lower ()]
-        #~ if panel.selector.currentText () != screen_name:
-            #~ panel.selector.setCurrentIndex (panel.selector.findText (screen_name))
+        #~ panel = self.panels[position.lower()]
+        #~ if panel.selector.currentText() != screen_name:
+            #~ panel.selector.setCurrentIndex(panel.selector.findText(screen_name))
             #~ #
             #~ # Changing the selector will cause a STATE? query to fire
             #~ #
 
-    #~ def _handle_position (self, position, cls_name, state):
-        #~ core.log.debug ("handle_position: %s, %s", position, rest)
+    #~ def _handle_position(self, position, cls_name, state):
+        #~ core.log.debug("handle_position: %s, %s", position, rest)
 
         #~ group = self.groups[position]
-        #~ group.selector.setCurrentIndex (group.selector.findText (cls_name))
-        #~ screen_widget = group.stack.currentWidget ()
+        #~ group.selector.setCurrentIndex(group.selector.findText(cls_name))
+        #~ screen_widget = group.stack.currentWidget()
 
         #~ styles_combo = screen_widget.styles
         #~ if "styles" in state:
-            #~ styles_combo.clear ()
-            #~ styles_combo.addItems ([item.strip () for item in state.pop ("styles")])
+            #~ styles_combo.clear()
+            #~ styles_combo.addItems([item.strip() for item in state.pop("styles")])
         #~ if "style" in state:
-            #~ screen_widget.styles.setCurrentIndex (screen_widget.styles.findText (state.pop ("style")))
-        #~ for k, v in state.items ():
-            #~ subwidget = getattr (screen_widget, k.lower (), None)
+            #~ screen_widget.styles.setCurrentIndex(screen_widget.styles.findText(state.pop("style")))
+        #~ for k, v in state.items():
+            #~ subwidget = getattr(screen_widget, k.lower(), None)
             #~ if subwidget:
-                #~ subwidget.setText (v)
+                #~ subwidget.setText(v)
 
-    #~ def handle_left (self, *args, **kwargs):
-        #~ self._handle_position ("left", *args, **kwargs)
+    #~ def handle_left(self, *args, **kwargs):
+        #~ self._handle_position("left", *args, **kwargs)
 
-    #~ def handle_right (self, *args, **kwargs):
-        #~ self._handle_position ("right", *args, **kwargs)
+    #~ def handle_right(self, *args, **kwargs):
+        #~ self._handle_position("right", *args, **kwargs)
 
-    def handle_teams (self, teams):
-        for n_team, new_name in enumerate (teams):
+    def handle_teams(self, teams):
+        for n_team, new_name in enumerate(teams):
             name, _, _, _ = self.teams[n_team]
-            name.setText (new_name)
+            name.setText(new_name)
 
-    def handle_colours (self, colours):
-        for n_team, new_colour in enumerate (colours):
+    def handle_colours(self, colours):
+        for n_team, new_colour in enumerate(colours):
             name, _, _, _ = self.teams[n_team]
-            name.setStyleSheet ("* { background-color : %s; }" % new_colour)
+            name.setStyleSheet("* { background-color : %s; }" % new_colour)
 
-    def handle_scores (self, scores):
-        for n_team, new_score in enumerate (scores):
+    def handle_scores(self, scores):
+        for n_team, new_score in enumerate(scores):
             _, score, _, _ = self.teams[n_team]
-            score.setText (new_score)
+            score.setText(unicode(new_score))
 
-    def handle_quit (self):
-        self.close ()
+    def handle_quit(self):
+        self.close()
 
-    def handle_response (self, message, args):
-        core.log.debug ("Response received: %s, %s", message, args)
-        message = unicode (message)
-        response = "%s %s" % (message, " ".join ("%r" % arg for arg in args))
-        self.responses.setText (response)
-        handler = getattr (self, "handle_" + message.lower (), self.handle_default)
-        return handler (*args)
+    def handle_response(self, message, args):
+        core.log.debug("Response received: %s, %s", message, args)
+        message = unicode(message)
+        response = "%s %s" % (message, " ".join("%r" % arg for arg in args))
+        self.responses.setText(response)
+        handler = getattr(self, "handle_" + message.lower(), self.handle_default)
+        return handler(*args)
 
-def main ():
+def main():
     app = QtGui.QApplication([])
     quiz_controller = QuizController()
     quiz_controller.show()
@@ -230,7 +236,7 @@ def main ():
 
 if __name__ == '__main__':
     try:
-        socket.socket ().connect (("localhost", 1234))
+        socket.socket().connect(("localhost", 1234))
     except socket.error:
-        subprocess.Popen ([sys.executable, "quiz.py"])
-    sys.exit (main (*sys.argv[1:]))
+        subprocess.Popen([sys.executable, "quiz.py"])
+    sys.exit(main(*sys.argv[1:]))

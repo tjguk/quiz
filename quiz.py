@@ -154,7 +154,7 @@ class Engine(object):
     def do_score(self, which_team, value):
         """Set the score for a team.
         """
-        team = self.teams[which_team]
+        team = self.teams[int(which_team)]
         score0 = team.score
         team.score = value
         if team.score > score0:
@@ -188,7 +188,7 @@ class Engine(object):
         if screen:
             action, args = args[0], args[1:]
             core.log.debug("Passing %s: %s onto %s", action, args, screen)
-            feedback = self.check_instruction([screen], action, args)
+            feedback = self.check_instruction([screen], action.strip().lower(), args)
             if feedback:
                 self.publish(position, *feedback)
 

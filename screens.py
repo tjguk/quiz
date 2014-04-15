@@ -1,4 +1,11 @@
 import math
+try:
+    import winsound
+    def beep(frequency, duration):
+        winsound.Beep(frequency, duration)
+except ImportError:
+    def beep(frequency, duration):
+        pass
 
 import pygame
 from PyQt4 import QtCore, QtGui
@@ -59,18 +66,18 @@ class SplashWidget(screen.ScreenWidget):
 #
 # Countdown - screen & widget
 #
-class Countdown (screen.Screen):
+class Countdown(screen.Screen):
 
     name = "Countdown"
     _state = screen.Screen._state + ["n_ticks", "big_tick_every_n", "tick_interval_secs", "final_furlong"]
 
     colours = {
         "little" : screen.Screen.foreground_colour,
-        "big" : core.Color ("blue")
+        "big" : core.Color("blue")
     }
     final_colours = {
-        "big" : core.Color ("red"),
-        "little" : core.Color ("yellow")
+        "big" : core.Color("red"),
+        "little" : core.Color("yellow")
     }
     sounds = {
         "big" : (1720, 100),
@@ -108,17 +115,17 @@ class Countdown (screen.Screen):
         for n_tick, tick in enumerate(self.ticks):
             if tick is None: continue
             colours = self.final_colours if n_tick > self.n_ticks - self.final_furlong else self.colours
-            tick_rect = core.Rect (0, 0, tick_w, tick_h).inflate(-4, -4)
+            tick_rect = core.Rect(0, 0, tick_w, tick_h).inflate(-4, -4)
             tick_rect.top = rect.top + tick_h * n_tick
             tick_rect.centerx = rect.centerx
-            surface.fill (colours[tick], tick_rect)
+            surface.fill(colours[tick], tick_rect)
 
     def render_clock(self, surface, rect):
         disc_size = {
             "big" : int(10 * 60.0 / self.n_ticks),
             "little" : int(8 * 60.0 / self.n_ticks)
         }
-        radius = (rect.height - 100) / 2
+        radius = (min(rect.height, rect.width) - 100) / 2
         half_pi = math.pi / 2.0
         radian_gap = 2.0 * math.pi / self.n_ticks
 
@@ -143,7 +150,7 @@ class Countdown (screen.Screen):
             self.final_furlong = 2 * self.big_tick_every_n
         else:
             self.final_furlong = int(final_furlong)
-        self.ticks = [None] + ["big" if t % self.big_tick_every_n == 0 else "little" for t in range(1, self.n_ticks + 1)]
+        self.ticks = [None] + [("big" if t % self.big_tick_every_n == 0 else "little") for t in range(1, self.n_ticks + 1)]
 
         self.is_dirty = True
 
@@ -164,7 +171,7 @@ class Countdown (screen.Screen):
         pygame.time.wait(1500)
         pygame.mixer.music.stop()
 
-    def do_tick (self):
+    def do_tick(self):
         if self.is_active:
             self.is_dirty = True
             tick_type = self.ticks[self.n_tick]
@@ -174,17 +181,17 @@ class Countdown (screen.Screen):
                     frequency *= 1.1
                 elif self.n_tick > self.n_ticks / 2:
                     frequency *= 1.05
-                winsound.Beep(int(frequency), duration)
+                beep(int(frequency), duration)
             self.ticks[self.n_tick] = None
             self.n_tick += 1
             if self.n_tick > self.n_ticks:
-                self.engine.instructions.put ("STOP")
-                self.engine.instructions.put ("FINISH")
+                self.engine.instructions.put("STOP")
+                self.engine.instructions.put("FINISH")
 
-    def get_countdown (self):
+    def get_countdown(self):
         return "COUNTDOWN", self.n_tick
 
-class CountdownWidget (screen.ScreenWidget):
+class CountdownWidget(screen.ScreenWidget):
 
     screen = Countdown
     name = screen.name
@@ -206,15 +213,20 @@ class CountdownWidget (screen.ScreenWidget):
         layout.addWidget(self.start_pause)
 
         reset_countdown.pressed.connect(self.on_reset)
-        start_pause.pressed.connect(self.on_start_pause)
+        self.start_pause.pressed.connect(self.on_start_pause)
 
         return layout
 
     def on_reset(self):
-        self.send_command("COUNTDOWN", self.n_ticks.text(), self.big_tick_every_n.text(), self.tick_interval_secs.text())
+        self.send_command(
+            "RESET",
+            self.n_ticks.text(),
+            self.big_tick_every_n.text(),
+            self.tick_interval_secs.text()
+        )
 
     def on_start_pause(self):
-        if self.start_pause.text () == "Start":
+        if self.start_pause.text() == "Start":
             self.send_command("START")
             self.start_pause.setText("Pause")
         else:
@@ -248,7 +260,7 @@ class Scores(screen.Screen):
 
     def _render_score(self, team, surface, team_rect):
         score_font = core.Font(self.score_typeface, team_rect.height / 3)
-        score = score_font.render("%d" % team.score, team.text_colour)
+        score = score_font.render("%s" % team.score, team.text_colour)
         score_rect = score.get_rect()
         score_rect.center = team_rect.center
         surface.blit(score, score_rect)
@@ -278,7 +290,7 @@ class Scores(screen.Screen):
         height = rect.height / len(teams)
         top = rect.top
         for team in sorted(teams, key=lambda t: t.score, reverse=True):
-            team_rect = core.Rect(rect.left, top, rect.width, height).inflate (-2, -2)
+            team_rect = core.Rect(rect.left, top, rect.width, height).inflate(-2, -2)
             surface.fill(team.colour, team_rect)
             self._render_team_title(team, surface, team_rect)
             self._render_score(team, surface, team_rect)
@@ -300,5 +312,5 @@ class ScoresWidget(screen.ScreenWidget):
     name = "Scores"
     screen = Scores
 
-_screens = dict((cls.__name__.lower (), cls) for cls in screen.Screen.__subclasses__())
-_widgets = dict((cls.name.lower (), cls) for cls in screen.ScreenWidget.__subclasses__())
+_screens = dict((cls.__name__.lower(), cls) for cls in screen.Screen.__subclasses__())
+_widgets = dict((cls.name.lower(), cls) for cls in screen.ScreenWidget.__subclasses__())
